@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // This started code is only a guide, you are free
@@ -33,9 +34,7 @@ func main() {
 				return
 			}
 			m, ok := sub1.Receive(context.TODO())
-			if !ok {
-				fmt.Println("sub failed to receive message")
-			} else {
+			if ok {
 				fmt.Printf("sub received message: %s\n", m)
 				received++
 			}
@@ -46,12 +45,27 @@ func main() {
 		broker.Publish(context.TODO(), topic, fmt.Sprintf("Hello %d\n", i))
 	}
 
-	<-done
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	success := false
+	select {
+	case <-ctx.Done():
+		fmt.Println("context done")
+		success = false
+	case <-done:
+		success = true
+		fmt.Println("done")
+	}
 
 	fmt.Println("unsubscribing from broker")
 	broker.Unsubscribe(topic, sub1)
 
-	fmt.Println("done!")
+	if success {
+		fmt.Println("received all messages")
+	} else {
+		fmt.Println("failed to receive all messages")
+	}
 }
 
 // Subscriber defines the public interface for receiving messages.
@@ -64,7 +78,7 @@ type Subscriber interface {
 type subscriber struct{}
 
 func (s *subscriber) Receive(ctx context.Context) (string, bool) {
-	return "", true
+	return "", false
 }
 
 // Broker defines the interface for a publish-subscribe broker.
